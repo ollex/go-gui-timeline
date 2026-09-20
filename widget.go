@@ -21,12 +21,25 @@ const (
 	sceneCacheCap        = 128
 	tooltipStateNS       = "timeline.tooltip"
 	tooltipStateCap      = 128
+	activeEventStateNS   = "timeline.active-event"
+	activeEventStateCap  = 128
+	activeEventIDPart    = "active-event"
 )
 
 // Config describes a timeline widget.
 type Config struct {
 	OnEventClick func(gg.EventCtx, Event)
 	ID           string
+	// A11YLabel names the timeline for assistive technology. Its default is
+	// "Timeline". Applications should override it for the user's language.
+	A11YLabel string
+	// A11YDescription provides optional instructions or context for assistive
+	// technology. Applications own its language and content.
+	A11YDescription string
+	// EventA11YLabel returns the complete accessible name for an event. It can
+	// include the resource, localized dates and times, and application-specific
+	// state. The event title is used when this function is nil.
+	EventA11YLabel func(Event, Resource) string
 	// ContentVersion is an optional application-managed revision for Resources
 	// and Events. Zero enables automatic change detection. When non-zero,
 	// increment it whenever either slice or any of their elements changes.
@@ -69,6 +82,11 @@ type eventTooltipState struct {
 	Visible    bool
 }
 
+type activeEventState struct {
+	EventID    EventID
+	EventIndex int
+}
+
 type sceneCacheEntry struct {
 	Scene       Scene
 	Fingerprint uint64
@@ -84,7 +102,9 @@ type canvasVersions struct {
 
 // GenerateLayout builds the timeline under its enclosing effective-ID scope.
 func (v *timelineView) GenerateLayout(w *gg.Window) gg.Layout {
-	return gg.GenerateViewLayout(buildWidget(w, v.cfg), w)
+	layout := gg.GenerateViewLayout(buildWidget(w, v.cfg), w)
+	suppressPaintedCanvasA11Y(&layout, v.cfg)
+	return layout
 }
 
 // New constructs a controlled timeline widget.
@@ -141,9 +161,24 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 	w.ScrollX().Set(stateID, -viewport.X)
 	w.ScrollY().Set(stateID, -viewport.Y)
 
+	activeStates := gg.StateMap[string, activeEventState](
+		w, activeEventStateNS, activeEventStateCap,
+	)
+	active := resolveActiveEventState(
+		activeStates.GetOr(stateID, activeEventState{}), cfg, scene,
+	)
+	activeStates.Set(stateID, active)
+	activeLayout, hasActiveEvent := activeEventLayout(scene, cfg, active)
+	activeFocusID := gg.ScopeID(stateID, activeEventIDPart)
+	activeFocused := hasActiveEvent && w.IsFocus(activeFocusID)
+
 	baseRenderer := newWidgetRenderer(cfg, scene, viewport)
+	baseRenderer.activeEventID = active.EventID
+	baseRenderer.activeFocused = activeFocused
 	version := resolvedWidgetFingerprint(cfg, baseRenderer)
 	versions := widgetCanvasVersions(version, viewport)
+	hashString(&versions.Body, string(active.EventID))
+	hashBool(&versions.Body, activeFocused)
 	tooltipStates := gg.StateMap[string, eventTooltipState](
 		w, tooltipStateNS, tooltipStateCap,
 	)
@@ -170,13 +205,11 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Height:  bodyCfg.Height,
 		Padding: gg.NoPadding,
 		Color:   baseRenderer.style.background,
-		A11YCfg: gg.A11YCfg{
-			A11YLabel:       "Timeline",
-			A11YDescription: "A scrollable resource timeline with scheduled events.",
-		},
-		OnDraw: bodyRenderer.drawBody,
+		OnDraw:  bodyRenderer.drawBody,
 		OnClick: func(ctx gg.EventCtx) {
-			handleWidgetClick(ctx, cfg, scene)
+			handleWidgetClickWithActive(
+				ctx, cfg, scene, activeStates, stateID, activeFocusID,
+			)
 		},
 		OnMouseMove: func(ctx gg.EventCtx) {
 			handleWidgetMouseMove(
@@ -232,6 +265,13 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		OnDraw:  cornerRenderer.drawCorner,
 	})
 
+	bodyContent := []gg.View{bodyCanvas}
+	if hasActiveEvent {
+		bodyContent = append(bodyContent, activeEventProxy(
+			cfg, scene, activeLayout, activeStates, stateID, bodyWidth, bodyHeight,
+		))
+	}
+
 	scrollBody := gg.Canvas(gg.ContainerCfg{
 		ID:         cfg.ID,
 		Sizing:     gg.FixedFixed,
@@ -240,6 +280,10 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Padding:    gg.NewPadding(0, scrollbarGutter, scrollbarGutter, 0),
 		Scrollable: true,
 		Overflow:   true,
+		A11YCfg: gg.A11YCfg{
+			A11YLabel:       cfg.A11YLabel,
+			A11YDescription: cfg.A11YDescription,
+		},
 		OnScroll: func(ctx gg.EventCtx) {
 			clearWidgetTooltip(ctx.Window, tooltipStates, stateID)
 		},
@@ -251,7 +295,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 			ID: cfg.ID + "-vertical-scrollbar", Overflow: gg.ScrollbarAuto,
 			GapEdge: gg.SomeF(2),
 		},
-		Content: []gg.View{bodyCanvas},
+		Content: bodyContent,
 	})
 
 	content := []gg.View{
@@ -318,7 +362,18 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 }
 
 func handleWidgetClick(ctx gg.EventCtx, cfg Config, scene Scene) {
-	if ctx.Event == nil || cfg.OnEventClick == nil {
+	handleWidgetClickWithActive(ctx, cfg, scene, nil, "", "")
+}
+
+func handleWidgetClickWithActive(
+	ctx gg.EventCtx,
+	cfg Config,
+	scene Scene,
+	states *gg.BoundedMap[string, activeEventState],
+	stateID string,
+	activeFocusID string,
+) {
+	if ctx.Event == nil {
 		return
 	}
 	hit, ok := scene.HitTest(ctx.Event.MouseX, ctx.Event.MouseY)
@@ -326,7 +381,304 @@ func handleWidgetClick(ctx gg.EventCtx, cfg Config, scene Scene) {
 		return
 	}
 	ctx.Consume()
-	cfg.OnEventClick(ctx, cfg.Events[hit.EventIndex])
+	if states != nil && ctx.Window != nil {
+		states.Set(stateID, activeEventState{
+			EventID: hit.EventID, EventIndex: hit.EventIndex,
+		})
+		ctx.Window.SetFocus(activeFocusID)
+		ctx.Window.InvalidateLayout()
+	}
+	if cfg.OnEventClick != nil {
+		cfg.OnEventClick(ctx, cfg.Events[hit.EventIndex])
+	}
+}
+
+func activeEventProxy(
+	cfg Config,
+	scene Scene,
+	active EventLayout,
+	states *gg.BoundedMap[string, activeEventState],
+	stateID string,
+	bodyWidth float32,
+	bodyHeight float32,
+) gg.View {
+	event := cfg.Events[active.SourceIndex]
+	resource := cfg.Resources[active.ResourceIndex]
+	a11yState := gg.AccessStateNone
+	if event.ID == cfg.SelectedEventID {
+		a11yState = gg.AccessStateSelected
+	}
+	role := gg.AccessRoleListItem
+	var activate func(gg.EventCtx)
+	if cfg.OnEventClick != nil {
+		role = gg.AccessRoleButton
+		activate = func(ctx gg.EventCtx) {
+			ctx.Consume()
+			cfg.OnEventClick(ctx, event)
+		}
+	}
+	return gg.Canvas(gg.ContainerCfg{
+		ID:           activeEventIDPart,
+		X:            active.Rect.X,
+		Y:            active.Rect.Y,
+		Width:        active.Rect.Width,
+		Height:       active.Rect.Height,
+		Sizing:       gg.FixedFixed,
+		Padding:      gg.NoPadding,
+		Spacing:      gg.SomeF(0),
+		SizeBorder:   gg.NoBorder,
+		Radius:       gg.SomeF(0),
+		Color:        gg.ColorTransparent,
+		Focusable:    true,
+		A11YRole:     role,
+		A11YState:    a11yState,
+		ClickOnSpace: false,
+		ClickOnEnter: activate != nil,
+		A11YCfg: gg.A11YCfg{
+			A11YLabel: eventA11YLabel(cfg, event, resource),
+		},
+		OnClick: activate,
+		OnKeyDown: func(ctx gg.EventCtx) {
+			handleActiveEventKey(
+				ctx, cfg, scene, active, states, stateID, bodyWidth, bodyHeight,
+			)
+		},
+	})
+}
+
+func eventA11YLabel(cfg Config, event Event, resource Resource) string {
+	if cfg.EventA11YLabel != nil {
+		return cfg.EventA11YLabel(event, resource)
+	}
+	if event.Title != "" {
+		return event.Title
+	}
+	return string(event.ID)
+}
+
+func handleActiveEventKey(
+	ctx gg.EventCtx,
+	cfg Config,
+	scene Scene,
+	active EventLayout,
+	states *gg.BoundedMap[string, activeEventState],
+	stateID string,
+	bodyWidth float32,
+	bodyHeight float32,
+) {
+	if ctx.Event == nil {
+		return
+	}
+	if ctx.Event.KeyCode == gg.KeySpace && cfg.OnEventClick != nil {
+		ctx.Consume()
+		cfg.OnEventClick(ctx, cfg.Events[active.SourceIndex])
+		return
+	}
+	next, handled := navigateEvent(
+		scene, active, ctx.Event.KeyCode, ctx.Event.Modifiers.Has(gg.ModCtrl),
+	)
+	if !handled {
+		return
+	}
+	ctx.Consume()
+	if next.ID == active.ID {
+		return
+	}
+	states.Set(stateID, activeEventState{
+		EventID: next.ID, EventIndex: next.SourceIndex,
+	})
+	scrollEventIntoView(ctx.Window, stateID, scene, next, bodyWidth, bodyHeight)
+	ctx.Window.InvalidateLayout()
+}
+
+func navigateEvent(
+	scene Scene,
+	active EventLayout,
+	key gg.KeyCode,
+	control bool,
+) (EventLayout, bool) {
+	row := scene.Rows[active.ResourceIndex]
+	index := 0
+	for i := range row.Events {
+		if row.Events[i].ID == active.ID {
+			index = i
+			break
+		}
+	}
+	switch key {
+	case gg.KeyLeft:
+		if index > 0 {
+			return row.Events[index-1], true
+		}
+	case gg.KeyRight:
+		if index+1 < len(row.Events) {
+			return row.Events[index+1], true
+		}
+	case gg.KeyHome:
+		if control {
+			if first, ok := firstSceneEvent(scene); ok {
+				return first, true
+			}
+		} else if len(row.Events) > 0 {
+			return row.Events[0], true
+		}
+	case gg.KeyEnd:
+		if control {
+			if last, ok := lastSceneEvent(scene); ok {
+				return last, true
+			}
+		} else if len(row.Events) > 0 {
+			return row.Events[len(row.Events)-1], true
+		}
+	case gg.KeyUp:
+		if next, ok := nearestEventInRowDirection(scene, active, -1); ok {
+			return next, true
+		}
+	case gg.KeyDown:
+		if next, ok := nearestEventInRowDirection(scene, active, 1); ok {
+			return next, true
+		}
+	default:
+		return active, false
+	}
+	// Navigation keys are handled at an edge as well, so they do not fall
+	// through to the scroll container and unexpectedly move the viewport.
+	return active, true
+}
+
+func nearestEventInRowDirection(
+	scene Scene,
+	active EventLayout,
+	direction int,
+) (EventLayout, bool) {
+	targetX := active.Rect.X + active.Rect.Width/2
+	for rowIndex := active.ResourceIndex + direction; rowIndex >= 0 && rowIndex < len(scene.Rows); rowIndex += direction {
+		row := scene.Rows[rowIndex]
+		if len(row.Events) == 0 {
+			continue
+		}
+		best := row.Events[0]
+		bestDistance := float32(math.Abs(float64(
+			best.Rect.X + best.Rect.Width/2 - targetX,
+		)))
+		for _, candidate := range row.Events[1:] {
+			distance := float32(math.Abs(float64(
+				candidate.Rect.X + candidate.Rect.Width/2 - targetX,
+			)))
+			if distance < bestDistance {
+				best = candidate
+				bestDistance = distance
+			}
+		}
+		return best, true
+	}
+	return EventLayout{}, false
+}
+
+func firstSceneEvent(scene Scene) (EventLayout, bool) {
+	for _, row := range scene.Rows {
+		if len(row.Events) > 0 {
+			return row.Events[0], true
+		}
+	}
+	return EventLayout{}, false
+}
+
+func lastSceneEvent(scene Scene) (EventLayout, bool) {
+	for i := len(scene.Rows) - 1; i >= 0; i-- {
+		if events := scene.Rows[i].Events; len(events) > 0 {
+			return events[len(events)-1], true
+		}
+	}
+	return EventLayout{}, false
+}
+
+func resolveActiveEventState(
+	state activeEventState,
+	cfg Config,
+	scene Scene,
+) activeEventState {
+	if _, ok := activeEventLayout(scene, cfg, state); ok {
+		return state
+	}
+	if selected, ok := sceneEventLayoutByID(scene, cfg, cfg.SelectedEventID); ok {
+		return activeEventState{
+			EventID: selected.ID, EventIndex: selected.SourceIndex,
+		}
+	}
+	if first, ok := firstSceneEvent(scene); ok {
+		return activeEventState{
+			EventID: first.ID, EventIndex: first.SourceIndex,
+		}
+	}
+	return activeEventState{}
+}
+
+func activeEventLayout(
+	scene Scene,
+	cfg Config,
+	state activeEventState,
+) (EventLayout, bool) {
+	if state.EventID == "" || state.EventIndex < 0 || state.EventIndex >= len(cfg.Events) ||
+		cfg.Events[state.EventIndex].ID != state.EventID {
+		return EventLayout{}, false
+	}
+	return sceneEventLayout(scene, state.EventIndex)
+}
+
+func sceneEventLayoutByID(scene Scene, cfg Config, id EventID) (EventLayout, bool) {
+	if id == "" {
+		return EventLayout{}, false
+	}
+	for eventIndex := range cfg.Events {
+		if cfg.Events[eventIndex].ID == id {
+			return sceneEventLayout(scene, eventIndex)
+		}
+	}
+	return EventLayout{}, false
+}
+
+func scrollEventIntoView(
+	w *gg.Window,
+	stateID string,
+	scene Scene,
+	event EventLayout,
+	bodyWidth float32,
+	bodyHeight float32,
+) {
+	viewport := viewportState{
+		X: -w.ScrollX().GetOr(stateID, 0),
+		Y: -w.ScrollY().GetOr(stateID, 0),
+	}
+	if event.Rect.X < viewport.X {
+		viewport.X = event.Rect.X
+	} else if event.Rect.X+event.Rect.Width > viewport.X+bodyWidth {
+		viewport.X = event.Rect.X + event.Rect.Width - bodyWidth
+	}
+	if event.Rect.Y < viewport.Y {
+		viewport.Y = event.Rect.Y
+	} else if event.Rect.Y+event.Rect.Height > viewport.Y+bodyHeight {
+		viewport.Y = event.Rect.Y + event.Rect.Height - bodyHeight
+	}
+	viewport = clampViewport(
+		viewport, widgetViewportLimits(scene, bodyWidth, bodyHeight),
+	)
+	w.ScrollX().Set(stateID, -viewport.X)
+	w.ScrollY().Set(stateID, -viewport.Y)
+}
+
+func suppressPaintedCanvasA11Y(layout *gg.Layout, cfg Config) {
+	if layout == nil || layout.Shape == nil {
+		return
+	}
+	switch layout.Shape.ID {
+	case cfg.ID + "-body", cfg.ID + "-time-header",
+		cfg.ID + "-resource-header", cfg.ID + "-corner":
+		layout.Shape.A11YRole = gg.AccessRoleNone
+	}
+	for i := range layout.Children {
+		suppressPaintedCanvasA11Y(&layout.Children[i], cfg)
+	}
 }
 
 func handleWidgetMouseMove(
@@ -484,6 +836,9 @@ func applyConfigDefaults(cfg *Config) {
 	}
 	if cfg.ResourceHeader == "" {
 		cfg.ResourceHeader = "Resource"
+	}
+	if cfg.A11YLabel == "" {
+		cfg.A11YLabel = "Timeline"
 	}
 }
 

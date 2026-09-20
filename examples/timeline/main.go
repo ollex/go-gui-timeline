@@ -356,6 +356,13 @@ func mainView(w *gui.Window) gui.View {
 				HeaderHeight:    48,
 				LaneHeight:      48,
 				EventInset:      7,
+				A11YLabel:       "Production schedule",
+				A11YDescription: "Use arrow keys to move between events. Press Enter or Space to select an event.",
+				EventA11YLabel: func(event timeline.Event, resource timeline.Resource) string {
+					return fmt.Sprintf("%s, %s, %s to %s",
+						event.Title, resource.Label,
+						event.Start.Format("15:04"), event.End.Format("15:04"))
+				},
 				OnEventClick: func(_ gui.EventCtx, event timeline.Event) {
 					state.selected = event.ID
 					state.status = fmt.Sprintf("Selected %q (%s–%s).",

@@ -31,6 +31,9 @@ func TestApplyConfigDefaults(t *testing.T) {
 	if cfg.ResourceHeader != "Resource" {
 		t.Errorf("ResourceHeader = %q, want %q", cfg.ResourceHeader, "Resource")
 	}
+	if cfg.A11YLabel != "Timeline" {
+		t.Errorf("A11YLabel = %q, want %q", cfg.A11YLabel, "Timeline")
+	}
 }
 
 func TestApplyConfigDefaultsPreservesValues(t *testing.T) {
@@ -659,6 +662,145 @@ func TestScrolledResourceTextRemainsUntilLabelLeavesViewport(t *testing.T) {
 	}
 	if !found {
 		t.Error("partially visible resource label vanished before reaching the viewport edge")
+	}
+}
+
+func TestTimelineExposesOneActiveEventProxy(t *testing.T) {
+	start := time.Date(2026, time.September, 21, 8, 0, 0, 0, time.UTC)
+	var labeledEvent EventID
+	var labeledResource ResourceID
+	cfg := Config{
+		ID:        "timeline",
+		Resources: []Resource{{ID: "room", Label: "Room A"}},
+		Events: []Event{{
+			ID: "meeting", ResourceID: "room", Title: "Planning",
+			Start: start.Add(time.Hour), End: start.Add(2 * time.Hour),
+		}},
+		View:  ViewSpec{Range: TimeRange{Start: start, End: start.Add(4 * time.Hour)}},
+		Width: 300, Height: 100, ContentWidth: 400,
+		ResourceWidth: 100, HeaderHeight: 20, LaneHeight: 40, EventInset: 2,
+		OnEventClick: func(gg.EventCtx, Event) {},
+		EventA11YLabel: func(event Event, resource Resource) string {
+			labeledEvent = event.ID
+			labeledResource = resource.ID
+			return "localized event label"
+		},
+	}
+	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	root := w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
+
+	proxyIDs := w.ResolveID(activeEventIDPart)
+	if len(proxyIDs) != 1 {
+		t.Fatalf("active event proxy IDs = %v, want exactly one", proxyIDs)
+	}
+	proxy, ok := root.FindByID(proxyIDs[0])
+	if !ok {
+		t.Fatalf("active event proxy %q not found", proxyIDs[0])
+	}
+	if proxy.Shape.A11YRole != gg.AccessRoleButton || !proxy.Shape.Focusable {
+		t.Errorf("proxy role/focusable = (%v, %v), want (button, true)",
+			proxy.Shape.A11YRole, proxy.Shape.Focusable)
+	}
+	if labeledEvent != "meeting" || labeledResource != "room" {
+		t.Errorf("label callback received (%q, %q), want (meeting, room)",
+			labeledEvent, labeledResource)
+	}
+
+	for _, leaf := range []string{
+		"timeline-body", "timeline-time-header",
+		"timeline-resource-header", "timeline-corner",
+	} {
+		ids := w.ResolveID(leaf)
+		if len(ids) != 1 {
+			t.Fatalf("%s IDs = %v, want one", leaf, ids)
+		}
+		painted, found := root.FindByID(ids[0])
+		if !found {
+			t.Fatalf("painted canvas %q not found", ids[0])
+		}
+		if painted.Shape.A11YRole != gg.AccessRoleNone {
+			t.Errorf("%s accessibility role = %v, want none",
+				leaf, painted.Shape.A11YRole)
+		}
+	}
+}
+
+func TestActiveEventKeyboardNavigationScrollsAndActivates(t *testing.T) {
+	start := time.Date(2026, time.September, 21, 8, 0, 0, 0, time.UTC)
+	var activated EventID
+	cfg := Config{
+		ID:        "timeline",
+		Resources: []Resource{{ID: "room", Label: "Room A"}},
+		Events: []Event{
+			{ID: "first", ResourceID: "room", Title: "First",
+				Start: start, End: start.Add(time.Hour)},
+			{ID: "second", ResourceID: "room", Title: "Second",
+				Start: start.Add(7 * time.Hour), End: start.Add(8 * time.Hour)},
+		},
+		View:  ViewSpec{Range: TimeRange{Start: start, End: start.Add(8 * time.Hour)}},
+		Width: 300, Height: 100, ContentWidth: 800,
+		ResourceWidth: 100, HeaderHeight: 20, LaneHeight: 40, EventInset: 2,
+		OnEventClick: func(_ gg.EventCtx, event Event) { activated = event.ID },
+	}
+	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
+	proxyIDs := w.ResolveID(activeEventIDPart)
+	if len(proxyIDs) != 1 {
+		t.Fatalf("active event proxy IDs = %v, want exactly one", proxyIDs)
+	}
+
+	if err := w.TestKey(proxyIDs[0], gg.KeyRight, gg.ModNone); err != nil {
+		t.Fatalf("Right: %v", err)
+	}
+	state := gg.StateMap[string, activeEventState](
+		w, activeEventStateNS, activeEventStateCap,
+	).GetOr("timeline", activeEventState{})
+	if state.EventID != "second" {
+		t.Errorf("active event = %q, want second", state.EventID)
+	}
+	if offset := w.ScrollX().GetOr("timeline", 0); offset >= 0 {
+		t.Errorf("horizontal scroll offset = %v, want a negative offset", offset)
+	}
+
+	if err := w.TestKey(proxyIDs[0], gg.KeyEnter, gg.ModNone); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if activated != "second" {
+		t.Errorf("activated event = %q, want second", activated)
+	}
+	activated = ""
+	if err := w.TestKey(proxyIDs[0], gg.KeySpace, gg.ModNone); err != nil {
+		t.Fatalf("Space: %v", err)
+	}
+	if activated != "second" {
+		t.Errorf("space-activated event = %q, want second", activated)
+	}
+}
+
+func TestVerticalEventNavigationChoosesNearestTime(t *testing.T) {
+	start := time.Date(2026, time.September, 21, 8, 0, 0, 0, time.UTC)
+	events := []Event{
+		{ID: "active", ResourceID: "a", Start: start.Add(4 * time.Hour), End: start.Add(5 * time.Hour)},
+		{ID: "early", ResourceID: "b", Start: start, End: start.Add(time.Hour)},
+		{ID: "near", ResourceID: "b", Start: start.Add(5 * time.Hour), End: start.Add(6 * time.Hour)},
+	}
+	scene, err := BuildScene(
+		[]Resource{{ID: "a"}, {ID: "b"}}, events,
+		LayoutConfig{
+			Range: TimeRange{Start: start, End: start.Add(8 * time.Hour)},
+			Width: 800, LaneHeight: 40, EventInset: 2,
+		},
+	)
+	if err != nil {
+		t.Fatalf("BuildScene: %v", err)
+	}
+	active, ok := sceneEventLayout(scene, 0)
+	if !ok {
+		t.Fatal("active event missing from scene")
+	}
+	next, handled := navigateEvent(scene, active, gg.KeyDown, false)
+	if !handled || next.ID != "near" {
+		t.Errorf("Down = (%q, %v), want (near, true)", next.ID, handled)
 	}
 }
 

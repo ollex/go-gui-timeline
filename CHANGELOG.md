@@ -19,4 +19,5 @@ and this project adheres to
 - Configurable event colors, resource header, dimensions, and week start.
 - A runnable example with simulated data loading, resource pagination, calendar
   navigation, zooming, and a large-data mode.
-
+- Keyboard navigation with a localized, application-defined active-event
+  accessibility label and canvas focus indication.

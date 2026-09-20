@@ -27,10 +27,12 @@ type widgetStyle struct {
 }
 
 type widgetRenderer struct {
-	cfg      Config
-	scene    Scene
-	viewport viewportState
-	style    widgetStyle
+	cfg           Config
+	scene         Scene
+	viewport      viewportState
+	style         widgetStyle
+	activeEventID EventID
+	activeFocused bool
 }
 
 func newWidgetRenderer(cfg Config, scene Scene, viewport viewportState) *widgetRenderer {
@@ -182,6 +184,10 @@ func (r *widgetRenderer) drawEvents(dc *gg.DrawContext) {
 			x := r.cfg.ResourceWidth + rect.X - r.viewport.X
 			y := r.cfg.HeaderHeight + rect.Y - r.viewport.Y
 			color := eventColor(event)
+			if r.activeFocused && eventLayout.ID == r.activeEventID {
+				dc.FilledRoundedRect(x-3, y-3, rect.Width+6, rect.Height+6,
+					r.style.radius, r.style.selection)
+			}
 			if eventLayout.ID == r.cfg.SelectedEventID {
 				dc.FilledRoundedRect(x-2, y-2, rect.Width+4, rect.Height+4,
 					r.style.radius, r.style.selection)
