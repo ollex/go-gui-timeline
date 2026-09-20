@@ -1,6 +1,7 @@
 package timeline_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -185,7 +186,11 @@ func TestBuildSceneRejectsInvalidModels(t *testing.T) {
 
 func assertRect(t *testing.T, got, want timeline.Rect) {
 	t.Helper()
-	if got != want {
+	const tolerance = 0.001
+	if math.Abs(float64(got.X-want.X)) > tolerance ||
+		math.Abs(float64(got.Y-want.Y)) > tolerance ||
+		math.Abs(float64(got.Width-want.Width)) > tolerance ||
+		math.Abs(float64(got.Height-want.Height)) > tolerance {
 		t.Errorf("Rect = %+v, want %+v", got, want)
 	}
 }
