@@ -37,9 +37,9 @@ type widgetRenderer struct {
 
 func newWidgetRenderer(cfg Config, scene Scene, viewport viewportState) *widgetRenderer {
 	theme := gg.CurrentTheme()
-	resourceText := theme.N3
+	resourceText := theme.TextStyleBody
 	timeText := theme.TextStyleSecondary
-	eventText := theme.N4
+	eventText := theme.TextStyleBodySmall
 	eventText.Color = gg.RGB(250, 250, 252)
 	return &widgetRenderer{
 		cfg:      cfg,

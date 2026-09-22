@@ -613,7 +613,7 @@ func TestTruncatedEventHoverShowsSingleTooltip(t *testing.T) {
 	pointer := &gg.Event{MouseX: 5, MouseY: 10}
 	handleWidgetMouseMove(
 		gg.EventCtx{Event: pointer, Window: w}, cfg, scene,
-		gg.CurrentTheme().N4, states, "timeline",
+		gg.CurrentTheme().TextStyleBodySmall, states, "timeline",
 	)
 	w.TestRender(nil)
 

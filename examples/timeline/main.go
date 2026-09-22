@@ -300,7 +300,7 @@ func mainView(w *gui.Window) gui.View {
 						state.navigate(1)
 						state.requestData(ctx.Window)
 					}),
-					gui.Text(gui.TextCfg{Text: periodLabel, TextStyle: theme.B2}),
+					gui.Text(gui.TextCfg{Text: periodLabel, TextStyle: theme.TextStyleTitle}),
 				},
 			}),
 			gui.Row(gui.ContainerCfg{
@@ -331,7 +331,7 @@ func mainView(w *gui.Window) gui.View {
 									state.requestData(ctx.Window)
 								}
 							}),
-							gui.Text(gui.TextCfg{Text: pageLabel, TextStyle: theme.B2}),
+							gui.Text(gui.TextCfg{Text: pageLabel, TextStyle: theme.TextStyleTitle}),
 							iconButton("resources-next", gui.IconForward, "Next resources", func(ctx gui.EventCtx) {
 								if state.changeResourcePage(1) {
 									state.requestData(ctx.Window)
@@ -378,7 +378,7 @@ func mainView(w *gui.Window) gui.View {
 			}),
 			gui.Text(gui.TextCfg{
 				Text:      state.status,
-				TextStyle: theme.B2,
+				TextStyle: theme.TextStyleTitle,
 			}),
 		},
 	})
@@ -393,7 +393,7 @@ func iconButton(id, icon, accessibleLabel string, onClick func(gui.EventCtx)) gu
 		Content: []gui.View{
 			gui.Text(gui.TextCfg{
 				Text:      icon,
-				TextStyle: gui.CurrentTheme().Icon4,
+				TextStyle: gui.CurrentTheme().TextStyleIconSmall,
 			}),
 		},
 	})
