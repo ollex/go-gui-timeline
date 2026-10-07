@@ -105,12 +105,13 @@ language. When it is nil, the event title is used as a minimal fallback. The
 application is responsible for localized dates, times, time zones, resource
 terminology, and any other event state that users need to hear.
 
-Screen-reader exposure depends on the selected Go GUI backend. In Go GUI
-v0.77.0, the native Windows GL backend does not yet publish its accessibility
-tree through Windows UI Automation, so Narrator cannot read these nodes. The
-keyboard interaction and visual focus behavior still work on Windows. Use the
-WebAssembly backend in a browser to exercise the semantic tree on Windows until
-the native backend gains a UI Automation bridge.
+Screen-reader exposure depends on the selected Go GUI backend. In the pinned Go
+GUI v0.86.0 release, the native Windows GL backend does not yet publish its
+accessibility tree through Windows UI Automation, so Narrator cannot read these
+nodes. The keyboard interaction and visual focus behavior still work on
+Windows. Use the WebAssembly backend in a browser to exercise the semantic tree
+on Windows until a release containing the native UI Automation bridge is
+available.
 
 ## Running the example
 
@@ -127,9 +128,9 @@ go run ./examples/timeline -large
 
 ### Browser accessibility test on Windows
 
-The native Windows backend does not yet expose Go GUI controls to Narrator. To
-exercise the WebAssembly backend's ARIA tree instead, run this from the project
-root. If local scripts are already allowed:
+Go GUI v0.86.0's native Windows backend does not yet expose its controls to
+Narrator. To exercise the WebAssembly backend's ARIA tree instead, run this from
+the project root. If local scripts are already allowed:
 
 ```powershell
 .\examples\timeline\run-web.ps1
@@ -174,8 +175,8 @@ Benchmarks can be run with:
 go test -run '^$' -bench . -benchmem ./...
 ```
 
-When developing beside a local Go GUI checkout, use an uncommitted `go.work`
-file instead of adding a local `replace` directive to `go.mod`.
+The project intentionally has no `go.work` file. Its Go GUI version is selected
+by `go.mod`, like it will be for downstream users and CI builds.
 
 ## License
 

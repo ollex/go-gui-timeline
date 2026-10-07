@@ -266,36 +266,36 @@ func mainView(w *gui.Window) gui.View {
 		ScrollMode: gui.ScrollVerticalOnly,
 		Sizing:     gui.FillFill,
 		Padding:    theme.PaddingLarge,
-		Spacing:    gui.SomeF(8),
+		Spacing:    gui.SpacingPx(8),
 		Content: []gui.View{
 			gui.Row(gui.ContainerCfg{
 				VAlign:  gui.VAlignMiddle,
-				Spacing: gui.SomeF(8),
+				Spacing: gui.SpacingPx(8),
 				Content: []gui.View{
 					iconButton("previous", gui.IconArrowLeft, "Previous period", func(ctx gui.EventCtx) {
 						state.navigate(-1)
 						state.requestData(ctx.Window)
 					}),
-					gui.TextButton("day", "Day", func(ctx gui.EventCtx) {
+					gui.Button(gui.ButtonCfg{ID: "day", Label: "Day", OnClick: func(ctx gui.EventCtx) {
 						if state.setCalendarView(viewDay) {
 							state.requestData(ctx.Window)
 						}
-					}),
-					gui.TextButton("week", "Week", func(ctx gui.EventCtx) {
+					}}),
+					gui.Button(gui.ButtonCfg{ID: "week", Label: "Week", OnClick: func(ctx gui.EventCtx) {
 						if state.setCalendarView(viewWeek) {
 							state.requestData(ctx.Window)
 						}
-					}),
-					gui.TextButton("month", "Month", func(ctx gui.EventCtx) {
+					}}),
+					gui.Button(gui.ButtonCfg{ID: "month", Label: "Month", OnClick: func(ctx gui.EventCtx) {
 						if state.setCalendarView(viewMonth) {
 							state.requestData(ctx.Window)
 						}
-					}),
-					gui.TextButton("year", "Year", func(ctx gui.EventCtx) {
+					}}),
+					gui.Button(gui.ButtonCfg{ID: "year", Label: "Year", OnClick: func(ctx gui.EventCtx) {
 						if state.setCalendarView(viewYear) {
 							state.requestData(ctx.Window)
 						}
-					}),
+					}}),
 					iconButton("next", gui.IconArrowRight, "Next period", func(ctx gui.EventCtx) {
 						state.navigate(1)
 						state.requestData(ctx.Window)
@@ -305,18 +305,18 @@ func mainView(w *gui.Window) gui.View {
 			}),
 			gui.Row(gui.ContainerCfg{
 				VAlign:  gui.VAlignMiddle,
-				Spacing: gui.SomeF(24),
+				Spacing: gui.SpacingPx(24),
 				Content: []gui.View{
 					gui.Row(gui.ContainerCfg{
 						VAlign:  gui.VAlignMiddle,
-						Spacing: gui.SomeF(8),
+						Spacing: gui.SpacingPx(8),
 						Content: []gui.View{
 							iconButton("zoom-out", gui.IconSearchMinus, "Zoom out", func(_ gui.EventCtx) {
 								state.zoomBy(-1)
 							}),
-							gui.TextButton("zoom-reset", zoomLabel, func(_ gui.EventCtx) {
+							gui.Button(gui.ButtonCfg{ID: "zoom-reset", Label: zoomLabel, OnClick: func(_ gui.EventCtx) {
 								state.resetZoom()
-							}),
+							}}),
 							iconButton("zoom-in", gui.IconSearchPlus, "Zoom in", func(_ gui.EventCtx) {
 								state.zoomBy(1)
 							}),
@@ -324,7 +324,7 @@ func mainView(w *gui.Window) gui.View {
 					}),
 					gui.Row(gui.ContainerCfg{
 						VAlign:  gui.VAlignMiddle,
-						Spacing: gui.SomeF(8),
+						Spacing: gui.SpacingPx(8),
 						Content: []gui.View{
 							iconButton("resources-previous", gui.IconBackward, "Previous resources", func(ctx gui.EventCtx) {
 								if state.changeResourcePage(-1) {

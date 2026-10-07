@@ -71,7 +71,7 @@ func benchmarkTimelineWidgetLargeYearFrame(
 		HeaderHeight: 48, LaneHeight: 48, EventInset: 7,
 		ContentVersion: contentVersion,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 1060, Height: 560})
+	w := gg.NewTestWindow(b, gg.WindowCfg{Width: 1060, Height: 560})
 	w.TestRender(func(w *gg.Window) gg.View { return timeline.New(w, cfg) })
 	b.ReportAllocs()
 	b.ReportMetric(float64(len(events)), "events/frame")

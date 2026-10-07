@@ -36,7 +36,7 @@ func TestPreviousWeekRedrawsDateHeaders(t *testing.T) {
 	state := newAppState()
 	state.database.delay = 0
 	state.calendarView = viewWeek
-	w := gui.NewTestWindow(gui.WindowCfg{
+	w := gui.NewTestWindow(t, gui.WindowCfg{
 		State:  state,
 		Width:  1060,
 		Height: 560,
@@ -105,7 +105,7 @@ func TestMonthAndYearButtonsRedrawCalendarHeaders(t *testing.T) {
 
 	state := newAppState()
 	state.database.delay = 0
-	w := gui.NewTestWindow(gui.WindowCfg{
+	w := gui.NewTestWindow(t, gui.WindowCfg{
 		State: state, Width: 1060, Height: 560,
 	})
 	w.TestRender(mainView)
@@ -125,7 +125,7 @@ func TestExampleAppliesConfiguredResourceHeader(t *testing.T) {
 	t.Parallel()
 
 	state := newAppState()
-	w := gui.NewTestWindow(gui.WindowCfg{
+	w := gui.NewTestWindow(t, gui.WindowCfg{
 		State: state, Width: 1060, Height: 560,
 	})
 	w.TestRender(mainView)
@@ -139,7 +139,7 @@ func TestResourcePaginationChangesRowsAndOnlyResetsVerticalViewport(t *testing.T
 
 	state := newLargeAppState()
 	state.database.delay = 0
-	w := gui.NewTestWindow(gui.WindowCfg{
+	w := gui.NewTestWindow(t, gui.WindowCfg{
 		State: state, Width: 1060, Height: 700,
 	})
 	w.TestRender(mainView)

@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Updated Go GUI to v0.86.0 and adopted its explicit `NoSpacing` and `NoRadius`
+  layout values.
+
 ### Added
 
 - Initial resource timeline widget for Go GUI.

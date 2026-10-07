@@ -174,7 +174,7 @@ func TestCachedWidgetSceneAutomaticAndExplicitModes(t *testing.T) {
 		View:         ViewSpec{Range: TimeRange{Start: start, End: start.Add(8 * time.Hour)}},
 		ContentWidth: 800, LaneHeight: 40, EventInset: 2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 
 	first := cachedWidgetScene(w, "timeline", cfg)
 	second := cachedWidgetScene(w, "timeline", cfg)
@@ -335,7 +335,7 @@ func TestTimelineScrollUpdatesItsViewport(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View {
 		return New(w, cfg)
 	})
@@ -366,7 +366,7 @@ func TestTimelineUsesStandardScrollbars(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	if got := w.ResolveID("timeline-horizontal-scrollbar"); len(got) != 1 {
 		t.Errorf("horizontal scrollbar IDs = %v, want one", got)
@@ -386,7 +386,7 @@ func TestResourceHeaderChangeRedrawsCorner(t *testing.T) {
 		Width: 300, Height: 100, ContentWidth: 600,
 		ResourceWidth: 100, HeaderHeight: 20, LaneHeight: 40, EventInset: 2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 
 	cfg.ResourceHeader = "Room"
@@ -419,7 +419,7 @@ func TestChangingViewKindResetsScroll(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	if err := w.TestScroll("timeline", -2, -2); err != nil {
 		t.Fatalf("TestScroll: %v", err)
@@ -451,7 +451,7 @@ func TestResourceChangePreservesHorizontalScroll(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	if err := w.TestScroll("timeline", -2, -2); err != nil {
 		t.Fatalf("TestScroll: %v", err)
@@ -487,7 +487,7 @@ func TestSameViewKindNavigationPreservesScroll(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	if err := w.TestScroll("timeline", -2, -2); err != nil {
 		t.Fatalf("TestScroll: %v", err)
@@ -521,7 +521,7 @@ func TestContentWidthChangePreservesViewportCenter(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 500, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 500, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	w.ScrollX().Set("timeline", -120)
 	bodyWidth := cfg.Width - cfg.ResourceWidth - gg.CurrentTheme().ScrollbarStyle.Size - 4
@@ -607,7 +607,7 @@ func TestTruncatedEventHoverShowsSingleTooltip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildScene: %v", err)
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	states := gg.StateMap[string, eventTooltipState](w, tooltipStateNS, tooltipStateCap)
 	pointer := &gg.Event{MouseX: 5, MouseY: 10}
@@ -644,7 +644,7 @@ func TestScrolledResourceTextRemainsUntilLabelLeavesViewport(t *testing.T) {
 		LaneHeight:    40,
 		EventInset:    2,
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 100})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 100})
 	w.TestRender(func(w *gg.Window) gg.View {
 		return New(w, cfg)
 	})
@@ -686,7 +686,7 @@ func TestTimelineExposesOneActiveEventProxy(t *testing.T) {
 			return "localized event label"
 		},
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	root := w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 
 	proxyIDs := w.ResolveID(activeEventIDPart)
@@ -742,7 +742,7 @@ func TestActiveEventKeyboardNavigationScrollsAndActivates(t *testing.T) {
 		ResourceWidth: 100, HeaderHeight: 20, LaneHeight: 40, EventInset: 2,
 		OnEventClick: func(_ gg.EventCtx, event Event) { activated = event.ID },
 	}
-	w := gg.NewTestWindow(gg.WindowCfg{Width: 400, Height: 200})
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
 	w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
 	proxyIDs := w.ResolveID(activeEventIDPart)
 	if len(proxyIDs) != 1 {

@@ -304,7 +304,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 			Width:   cfg.Width,
 			Height:  cfg.HeaderHeight,
 			Padding: gg.NoPadding,
-			Spacing: gg.SomeF(0),
+			Spacing: gg.NoSpacing,
 			Content: []gg.View{
 				corner,
 				timeHeader,
@@ -313,7 +313,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 					Width:  scrollbarGutter,
 					Height: cfg.HeaderHeight,
 					Color:  baseRenderer.style.header,
-					Radius: gg.SomeF(0),
+					Radius: gg.NoRadius,
 				}),
 			},
 		}),
@@ -322,14 +322,14 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 			Width:   cfg.Width,
 			Height:  scrollAreaHeight,
 			Padding: gg.NoPadding,
-			Spacing: gg.SomeF(0),
+			Spacing: gg.NoSpacing,
 			Content: []gg.View{
 				gg.Column(gg.ContainerCfg{
 					Sizing:  gg.FixedFixed,
 					Width:   cfg.ResourceWidth,
 					Height:  scrollAreaHeight,
 					Padding: gg.NoPadding,
-					Spacing: gg.SomeF(0),
+					Spacing: gg.NoSpacing,
 					Content: []gg.View{
 						resourceHeader,
 						gg.Canvas(gg.ContainerCfg{
@@ -337,7 +337,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 							Width:  cfg.ResourceWidth,
 							Height: scrollbarGutter,
 							Color:  baseRenderer.style.background,
-							Radius: gg.SomeF(0),
+							Radius: gg.NoRadius,
 						}),
 					},
 				}),
@@ -356,7 +356,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Width:   cfg.Width,
 		Height:  cfg.Height,
 		Padding: gg.NoPadding,
-		Spacing: gg.SomeF(0),
+		Spacing: gg.NoSpacing,
 		Content: content,
 	})
 }
@@ -425,9 +425,9 @@ func activeEventProxy(
 		Height:       active.Rect.Height,
 		Sizing:       gg.FixedFixed,
 		Padding:      gg.NoPadding,
-		Spacing:      gg.SomeF(0),
+		Spacing:      gg.NoSpacing,
 		SizeBorder:   gg.NoBorder,
-		Radius:       gg.SomeF(0),
+		Radius:       gg.NoRadius,
 		Color:        gg.ColorTransparent,
 		Focusable:    true,
 		A11YRole:     role,
