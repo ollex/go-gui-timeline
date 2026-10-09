@@ -100,6 +100,13 @@ type canvasVersions struct {
 	Corner         uint64
 }
 
+type bodyCanvasRegion struct {
+	X      float32
+	Y      float32
+	Width  float32
+	Height float32
+}
+
 // GenerateLayout builds the timeline under its enclosing effective-ID scope.
 func (v *timelineView) GenerateLayout(w *gg.Window) gg.Layout {
 	layout := gg.GenerateViewLayout(buildWidget(w, v.cfg), w)
@@ -160,6 +167,10 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 	}, limits)
 	w.ScrollX().Set(stateID, -viewport.X)
 	w.ScrollY().Set(stateID, -viewport.Y)
+	bodyRegion := virtualizedBodyRegion(
+		viewport, max(scene.Width, bodyWidth), max(scene.Height, bodyHeight),
+		bodyWidth, bodyHeight,
+	)
 
 	activeStates := gg.StateMap[string, activeEventState](
 		w, activeEventStateNS, activeEventStateCap,
@@ -177,6 +188,9 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 	baseRenderer.activeFocused = activeFocused
 	version := resolvedWidgetFingerprint(cfg, baseRenderer)
 	versions := widgetCanvasVersions(version, viewport)
+	versions.Body = widgetVersion(version, viewportState{
+		X: bodyRegion.X, Y: bodyRegion.Y,
+	})
 	hashString(&versions.Body, string(active.EventID))
 	hashBool(&versions.Body, activeFocused)
 	tooltipStates := gg.StateMap[string, eventTooltipState](
@@ -191,13 +205,13 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 	}
 
 	bodyCfg := cfg
-	bodyCfg.Width = max(scene.Width, bodyWidth)
-	bodyCfg.Height = max(scene.Height, bodyHeight)
+	bodyCfg.Width = bodyRegion.Width
+	bodyCfg.Height = bodyRegion.Height
 	bodyCfg.ResourceWidth = 0
 	bodyCfg.HeaderHeight = 0
 	bodyRenderer := *baseRenderer
 	bodyRenderer.cfg = bodyCfg
-	bodyRenderer.viewport = viewportState{}
+	bodyRenderer.viewport = viewportState{X: bodyRegion.X, Y: bodyRegion.Y}
 	bodyCanvas := gg.DrawCanvas(gg.DrawCanvasCfg{
 		ID:      cfg.ID + "-body",
 		Version: versions.Body,
@@ -205,16 +219,18 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Height:  bodyCfg.Height,
 		Padding: gg.NoPadding,
 		Color:   baseRenderer.style.background,
+		Clip:    true,
 		OnDraw:  bodyRenderer.drawBody,
 		OnClick: func(ctx gg.EventCtx) {
 			handleWidgetClickWithActive(
 				ctx, cfg, scene, activeStates, stateID, activeFocusID,
+				bodyRenderer.viewport,
 			)
 		},
 		OnMouseMove: func(ctx gg.EventCtx) {
-			handleWidgetMouseMove(
+			handleWidgetMouseMoveAtViewport(
 				ctx, cfg, scene, baseRenderer.style.eventText,
-				tooltipStates, stateID,
+				tooltipStates, stateID, bodyRenderer.viewport,
 			)
 		},
 		OnMouseLeave: func(ctx gg.EventCtx) {
@@ -265,7 +281,23 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		OnDraw:  cornerRenderer.drawCorner,
 	})
 
-	bodyContent := []gg.View{bodyCanvas}
+	bodyExtent := gg.Canvas(gg.ContainerCfg{
+		Sizing:  gg.FixedFixed,
+		Width:   max(scene.Width, bodyWidth),
+		Height:  max(scene.Height, bodyHeight),
+		Padding: gg.NoPadding,
+		Color:   gg.ColorTransparent,
+	})
+	bodyLayer := gg.Canvas(gg.ContainerCfg{
+		X:       bodyRegion.X,
+		Y:       bodyRegion.Y,
+		Sizing:  gg.FixedFixed,
+		Width:   bodyRegion.Width,
+		Height:  bodyRegion.Height,
+		Padding: gg.NoPadding,
+		Content: []gg.View{bodyCanvas},
+	})
+	bodyContent := []gg.View{bodyExtent, bodyLayer}
 	if hasActiveEvent {
 		bodyContent = append(bodyContent, activeEventProxy(
 			cfg, scene, activeLayout, activeStates, stateID, bodyWidth, bodyHeight,
@@ -362,7 +394,9 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 }
 
 func handleWidgetClick(ctx gg.EventCtx, cfg Config, scene Scene) {
-	handleWidgetClickWithActive(ctx, cfg, scene, nil, "", "")
+	handleWidgetClickWithActive(
+		ctx, cfg, scene, nil, "", "", viewportState{},
+	)
 }
 
 func handleWidgetClickWithActive(
@@ -372,11 +406,14 @@ func handleWidgetClickWithActive(
 	states *gg.BoundedMap[string, activeEventState],
 	stateID string,
 	activeFocusID string,
+	viewport viewportState,
 ) {
 	if ctx.Event == nil {
 		return
 	}
-	hit, ok := scene.HitTest(ctx.Event.MouseX, ctx.Event.MouseY)
+	hit, ok := scene.HitTest(
+		ctx.Event.MouseX+viewport.X, ctx.Event.MouseY+viewport.Y,
+	)
 	if !ok {
 		return
 	}
@@ -689,11 +726,27 @@ func handleWidgetMouseMove(
 	states *gg.BoundedMap[string, eventTooltipState],
 	stateID string,
 ) {
+	handleWidgetMouseMoveAtViewport(
+		ctx, cfg, scene, textStyle, states, stateID, viewportState{},
+	)
+}
+
+func handleWidgetMouseMoveAtViewport(
+	ctx gg.EventCtx,
+	cfg Config,
+	scene Scene,
+	textStyle gg.TextStyle,
+	states *gg.BoundedMap[string, eventTooltipState],
+	stateID string,
+	viewport viewportState,
+) {
 	if ctx.Event == nil {
 		return
 	}
 	next := eventTooltipState{}
-	hit, ok := scene.HitTest(ctx.Event.MouseX, ctx.Event.MouseY)
+	hit, ok := scene.HitTest(
+		ctx.Event.MouseX+viewport.X, ctx.Event.MouseY+viewport.Y,
+	)
 	if ok {
 		layout, found := sceneEventLayout(scene, hit.EventIndex)
 		event := cfg.Events[hit.EventIndex]
@@ -793,6 +846,23 @@ func widgetViewportLimits(scene Scene, bodyWidth, bodyHeight float32) viewportLi
 	return viewportLimits{
 		X: max(0, scene.Width-bodyWidth),
 		Y: max(0, scene.Height-bodyHeight),
+	}
+}
+
+func virtualizedBodyRegion(
+	viewport viewportState,
+	extentWidth float32,
+	extentHeight float32,
+	viewportWidth float32,
+	viewportHeight float32,
+) bodyCanvasRegion {
+	x := float32(math.Floor(float64(viewport.X/viewportWidth))) * viewportWidth
+	y := float32(math.Floor(float64(viewport.Y/viewportHeight))) * viewportHeight
+	return bodyCanvasRegion{
+		X:      x,
+		Y:      y,
+		Width:  min(2*viewportWidth, extentWidth-x),
+		Height: min(2*viewportHeight, extentHeight-y),
 	}
 }
 

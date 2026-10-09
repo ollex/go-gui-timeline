@@ -267,7 +267,7 @@ func TestResetEventLocationsReusesUntilCapacityExceeded(t *testing.T) {
 	}
 }
 
-func TestCanvasVersionsUseOnlyRelevantViewportAxis(t *testing.T) {
+func TestCanvasVersionsUseOnlyRelevantViewportAxes(t *testing.T) {
 	t.Parallel()
 
 	const base = uint64(42)
@@ -287,10 +287,54 @@ func TestCanvasVersionsUseOnlyRelevantViewportAxis(t *testing.T) {
 		t.Error("time-header version unexpectedly tracks vertical viewport")
 	}
 	if atOrigin.Body != horizontal.Body || atOrigin.Body != vertical.Body {
-		t.Error("body version unexpectedly depends on viewport")
+		t.Error("body version unexpectedly tracks the unquantized viewport")
 	}
 	if atOrigin.Corner != horizontal.Corner || atOrigin.Corner != vertical.Corner {
 		t.Error("corner version unexpectedly depends on viewport")
+	}
+}
+
+func TestVirtualizedBodyRegionReusesOverscanWithinTile(t *testing.T) {
+	t.Parallel()
+
+	extentWidth, extentHeight := float32(1200), float32(600)
+	viewportWidth, viewportHeight := float32(200), float32(100)
+	atOrigin := virtualizedBodyRegion(
+		viewportState{}, extentWidth, extentHeight, viewportWidth, viewportHeight,
+	)
+	withinTile := virtualizedBodyRegion(
+		viewportState{X: 150, Y: 75}, extentWidth, extentHeight,
+		viewportWidth, viewportHeight,
+	)
+	if atOrigin != withinTile {
+		t.Errorf("region changed within overscan tile: origin=%+v, scrolled=%+v",
+			atOrigin, withinTile)
+	}
+	if atOrigin.Width != 2*viewportWidth || atOrigin.Height != 2*viewportHeight {
+		t.Errorf("region size = (%v, %v), want one viewport of overscan (%v, %v)",
+			atOrigin.Width, atOrigin.Height, 2*viewportWidth, 2*viewportHeight)
+	}
+
+	nextTile := virtualizedBodyRegion(
+		viewportState{X: viewportWidth, Y: viewportHeight},
+		extentWidth, extentHeight, viewportWidth, viewportHeight,
+	)
+	if nextTile.X != viewportWidth || nextTile.Y != viewportHeight {
+		t.Errorf("next region origin = (%v, %v), want (%v, %v)",
+			nextTile.X, nextTile.Y, viewportWidth, viewportHeight)
+	}
+
+	nearEndViewport := viewportState{X: extentWidth - viewportWidth - 1,
+		Y: extentHeight - viewportHeight - 1}
+	nearEnd := virtualizedBodyRegion(
+		nearEndViewport, extentWidth, extentHeight, viewportWidth, viewportHeight,
+	)
+	if nearEnd.X > nearEndViewport.X ||
+		nearEnd.X+nearEnd.Width < nearEndViewport.X+viewportWidth ||
+		nearEnd.Y > nearEndViewport.Y ||
+		nearEnd.Y+nearEnd.Height < nearEndViewport.Y+viewportHeight {
+		t.Errorf("near-end region %+v does not cover viewport %+v",
+			nearEnd, nearEndViewport)
 	}
 }
 
@@ -373,6 +417,50 @@ func TestTimelineUsesStandardScrollbars(t *testing.T) {
 	}
 	if got := w.ResolveID("timeline-vertical-scrollbar"); len(got) != 1 {
 		t.Errorf("vertical scrollbar IDs = %v, want one", got)
+	}
+}
+
+func TestTimelineBodyCanvasIsLimitedToViewport(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, time.September, 21, 0, 0, 0, 0, time.UTC)
+	cfg := Config{
+		ID:            "timeline",
+		Resources:     []Resource{{ID: "room"}},
+		View:          DayView(start),
+		Width:         300,
+		Height:        100,
+		ContentWidth:  1200,
+		ResourceWidth: 100,
+		HeaderHeight:  20,
+		LaneHeight:    40,
+		EventInset:    2,
+	}
+	w := gg.NewTestWindow(t, gg.WindowCfg{Width: 400, Height: 200})
+	root := w.TestRender(func(w *gg.Window) gg.View { return New(w, cfg) })
+	bodyIDs := w.ResolveID("timeline-body")
+	if len(bodyIDs) != 1 {
+		t.Fatalf("body canvas IDs = %v, want one", bodyIDs)
+	}
+	body, ok := root.FindByID(bodyIDs[0])
+	if !ok {
+		t.Fatalf("body canvas %q not found", bodyIDs[0])
+	}
+	gutter := gg.CurrentTheme().ScrollbarStyle.Size + 4
+	wantWidth := cfg.Width - cfg.ResourceWidth - gutter
+	wantHeight := cfg.Height - cfg.HeaderHeight - gutter
+	if body.Shape.Width > 2*wantWidth || body.Shape.Height > 2*wantHeight ||
+		body.Shape.Width >= cfg.ContentWidth {
+		t.Errorf("body canvas size = (%v, %v), want at most one viewport of overscan (%v, %v) and less than content width %v",
+			body.Shape.Width, body.Shape.Height, 2*wantWidth, 2*wantHeight,
+			cfg.ContentWidth)
+	}
+
+	if err := w.TestScroll("timeline", -1000, 0); err != nil {
+		t.Fatalf("TestScroll: %v", err)
+	}
+	if got := w.ScrollX().GetOr("timeline", 0); got >= 0 {
+		t.Errorf("horizontal scroll offset = %v, want a negative offset", got)
 	}
 }
 
@@ -569,8 +657,11 @@ func TestHandleWidgetClickUsesScrolledContentCoordinates(t *testing.T) {
 			clicked = event.ID
 		},
 	}
-	pointer := &gg.Event{MouseX: 450, MouseY: 10}
-	handleWidgetClick(gg.EventCtx{Event: pointer}, cfg, scene)
+	pointer := &gg.Event{MouseX: 50, MouseY: 10}
+	handleWidgetClickWithActive(
+		gg.EventCtx{Event: pointer}, cfg, scene, nil, "", "",
+		viewportState{X: 400},
+	)
 	if clicked != event.ID {
 		t.Errorf("clicked ID = %q, want %q", clicked, event.ID)
 	}
