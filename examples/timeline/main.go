@@ -10,7 +10,7 @@ import (
 	"github.com/go-gui-org/go-gui/gui"
 	"github.com/go-gui-org/go-gui/gui/backend"
 	"github.com/go-gui-org/go-gui/gui/backend/soft"
-	"github.com/ollex/go-gui-timeline"
+	timeline "github.com/ollex/go-gui-timeline"
 )
 
 const (
