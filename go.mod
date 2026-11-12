@@ -2,7 +2,7 @@ module github.com/ollex/go-gui-timeline
 
 go 1.26.0
 
-require github.com/go-gui-org/go-gui v0.90.0
+require github.com/go-gui-org/go-gui v0.95.0
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
