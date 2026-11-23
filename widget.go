@@ -289,13 +289,14 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Color:   gg.ColorTransparent,
 	})
 	bodyLayer := gg.Canvas(gg.ContainerCfg{
-		X:       bodyRegion.X,
-		Y:       bodyRegion.Y,
-		Sizing:  gg.FixedFixed,
-		Width:   bodyRegion.Width,
-		Height:  bodyRegion.Height,
-		Padding: gg.NoPadding,
-		Content: []gg.View{bodyCanvas},
+		X:          bodyRegion.X,
+		Y:          bodyRegion.Y,
+		Sizing:     gg.FixedFixed,
+		Width:      bodyRegion.Width,
+		Height:     bodyRegion.Height,
+		Padding:    gg.NoPadding,
+		SizeBorder: gg.NoBorder,
+		Content:    []gg.View{bodyCanvas},
 	})
 	bodyContent := []gg.View{bodyExtent, bodyLayer}
 	if hasActiveEvent {
@@ -312,6 +313,7 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 		Padding:    gg.NewPadding(0, scrollbarGutter, scrollbarGutter, 0),
 		Scrollable: true,
 		Overflow:   true,
+		SizeBorder: gg.NoBorder,
 		A11YCfg: gg.A11YCfg{
 			A11YLabel:       cfg.A11YLabel,
 			A11YDescription: cfg.A11YDescription,
@@ -332,11 +334,12 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 
 	content := []gg.View{
 		gg.Row(gg.ContainerCfg{
-			Sizing:  gg.FixedFixed,
-			Width:   cfg.Width,
-			Height:  cfg.HeaderHeight,
-			Padding: gg.NoPadding,
-			Spacing: gg.NoSpacing,
+			Sizing:     gg.FixedFixed,
+			Width:      cfg.Width,
+			Height:     cfg.HeaderHeight,
+			Padding:    gg.NoPadding,
+			Spacing:    gg.NoSpacing,
+			SizeBorder: gg.NoBorder,
 			Content: []gg.View{
 				corner,
 				timeHeader,
@@ -350,18 +353,20 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 			},
 		}),
 		gg.Row(gg.ContainerCfg{
-			Sizing:  gg.FixedFixed,
-			Width:   cfg.Width,
-			Height:  scrollAreaHeight,
-			Padding: gg.NoPadding,
-			Spacing: gg.NoSpacing,
+			Sizing:     gg.FixedFixed,
+			Width:      cfg.Width,
+			Height:     scrollAreaHeight,
+			Padding:    gg.NoPadding,
+			Spacing:    gg.NoSpacing,
+			SizeBorder: gg.NoBorder,
 			Content: []gg.View{
 				gg.Column(gg.ContainerCfg{
-					Sizing:  gg.FixedFixed,
-					Width:   cfg.ResourceWidth,
-					Height:  scrollAreaHeight,
-					Padding: gg.NoPadding,
-					Spacing: gg.NoSpacing,
+					Sizing:     gg.FixedFixed,
+					Width:      cfg.ResourceWidth,
+					Height:     scrollAreaHeight,
+					Padding:    gg.NoPadding,
+					Spacing:    gg.NoSpacing,
+					SizeBorder: gg.NoBorder,
 					Content: []gg.View{
 						resourceHeader,
 						gg.Canvas(gg.ContainerCfg{
@@ -384,12 +389,13 @@ func buildWidget(w *gg.Window, cfg Config) gg.View {
 	}
 
 	return gg.Column(gg.ContainerCfg{
-		Sizing:  gg.FixedFixed,
-		Width:   cfg.Width,
-		Height:  cfg.Height,
-		Padding: gg.NoPadding,
-		Spacing: gg.NoSpacing,
-		Content: content,
+		Sizing:     gg.FixedFixed,
+		Width:      cfg.Width,
+		Height:     cfg.Height,
+		Padding:    gg.NoPadding,
+		Spacing:    gg.NoSpacing,
+		SizeBorder: gg.NoBorder,
+		Content:    content,
 	})
 }
 
